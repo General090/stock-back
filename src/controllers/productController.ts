@@ -1,4 +1,3 @@
-// controllers/productController.ts or transactionController.ts
 import Product from "../models/Product";
 import { sendNotification } from "../utils/sendNotification";
 

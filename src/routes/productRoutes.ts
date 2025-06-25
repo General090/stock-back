@@ -1,47 +1,85 @@
 import express, { Request, Response } from "express";
-import Product from "../models/Product";
+import Product, { ProductDocument } from "../models/Product";
 import { checkStockLevel } from "../utils/checkStockLevel";
 
 const router = express.Router();
 
 // GET /products/low-stock
-router.get("/low-stock", async (req, res) => {
+router.get("/low-stock", async (req: Request, res: Response) => {
   try {
-    const threshold = 5;
-    const lowStock = await Product.find({ quantity: { $lt: threshold } });
+    const threshold = req.query.threshold || 5;
+    const lowStock = await Product.find({
+      $or: [
+        { remainingQuantity: { $lt: threshold } },
+        { quantity: { $lt: threshold } }
+      ]
+    }).lean();
     res.json(lowStock);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch low stock products" });
+    res.status(500).json({ error: "Failed to fetch low stock products" });
   }
 });
 
-// GET /api/products
-router.get("/", async (_req, res) => {
-  const products = await Product.find();
-  res.json(products);
-});
 
-
-
-// Get all products
-router.get("/", async (_req: Request, res: Response) => {
-  try {
-    const products = await Product.find();
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to get products", error: err });
-  }
-});
-
-// Add new product
 router.post("/", async (req: Request, res: Response) => {
   try {
-    const { name, quantity, price } = req.body;
-    const newProduct = new Product({ name, quantity, price });
+    const { 
+      name, 
+      initialQuantity, 
+      costPrice, 
+      sellingPrice, 
+      minThreshold = 5, 
+      maxThreshold = 100, 
+      category = "General" 
+    } = req.body;
+
+    // Validate required fields
+    if (!name || initialQuantity === undefined || costPrice === undefined || sellingPrice === undefined) {
+      return res.status(400).json({ 
+        message: "Missing required fields: name, initialQuantity, costPrice, sellingPrice" 
+      });
+    }
+
+    const newProduct = new Product({ 
+      name, 
+      initialQuantity,
+      remainingQuantity: initialQuantity, // Set equal to initial quantity
+      costPrice,
+      sellingPrice,
+      minThreshold,
+      maxThreshold,
+      category
+    });
+    
     await newProduct.save();
-    res.status(201).json(newProduct);
+    res.status(201).json({
+      success: true,
+      data: newProduct
+    });
   } catch (err) {
-    res.status(500).json({ message: "Failed to add product", error: err });
+    console.error("Error creating product:", err);
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to add product", 
+      error: errorMessage 
+    });
+  }
+});
+
+// Get all products
+router.get("/", async (req: Request, res: Response) => {
+  try {
+    const products = await Product.find();
+    res.json({
+      success: true,
+      data: products
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch products"
+    });
   }
 });
 
@@ -50,11 +88,19 @@ router.put("/:id", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    const updatedProduct = await Product.findByIdAndUpdate(id, updates, { new: true });
-    if (!updatedProduct) return res.status(404).json({ message: "Product not found" });
+    const updatedProduct = await Product.findByIdAndUpdate(id, updates, { 
+      new: true,
+      runValidators: true // Ensures updates follow schema validation
+    });
+    
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    
     res.json(updatedProduct);
   } catch (err) {
-    res.status(500).json({ message: "Failed to update product", error: err });
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ message: "Failed to update product", error: errorMessage });
   }
 });
 
@@ -66,26 +112,30 @@ router.delete("/:id", async (req: Request, res: Response) => {
     if (!deleted) return res.status(404).json({ message: "Product not found" });
     res.json({ message: "Product deleted" });
   } catch (err) {
-    res.status(500).json({ message: "Failed to delete product", error: err });
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ message: "Failed to delete product", error: errorMessage });
   }
 });
 
-
-router.post("/stock-in", async (req, res) => {
+// Stock in operation
+router.post("/stock-in", async (req: Request, res: Response) => {
   try {
     const { productId, quantity } = req.body;
     const product = await Product.findById(productId);
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    product.quantity += quantity;
+    product.remainingQuantity += quantity;
+    if (product.initialQuantity < product.remainingQuantity) {
+      product.initialQuantity = product.remainingQuantity;
+    }
+    
     await product.save();
-
-    // ✅ Check stock level after update
     await checkStockLevel(product._id.toString());
-
+    
     res.status(200).json({ message: "Stock updated", product });
   } catch (err) {
-    res.status(500).json({ error: "Stock-in failed" });
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Stock-in failed", details: errorMessage });
   }
 });
 
