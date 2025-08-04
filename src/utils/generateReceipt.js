@@ -1,11 +1,8 @@
-// utils/generateReceipt.ts
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// utils/generateReceipt.js
+const jsPDF = require("jspdf");
+const autoTable = require("jspdf-autotable");
 
-export function generateReceipt(data: {
-  customer?: string;
-  products: { name: string; quantity: number; price: number }[];
-}) {
+function generateReceipt(data) {
   const doc = new jsPDF();
 
   doc.setFontSize(18);
@@ -36,3 +33,5 @@ export function generateReceipt(data: {
 
   doc.save("receipt.pdf");
 }
+
+module.exports = { generateReceipt };

@@ -1,26 +1,11 @@
-import { Request, Response } from "express";
-import Product, { ProductDocument } from "../models/Product";
+const Product = require("../models/Product");
 
-interface StockItem {
-  name: string;
-  initialQuantity: number;
-  remainingQuantity: number;
-  costPrice: number;
-  sellingPrice: number;
-  minThreshold: number;
-  maxThreshold: number;
-  soldQuantity: number;
-  totalCostValue: number;
-  totalSalesValue: number;
-  profit: number;
-  category?: string;
-}
-
-export const getStockSummary = async (req: Request, res: Response) => {
+const getStockSummary = async (req, res) => {
+  const userId = req.user.id;
   try {
-    const products = await Product.find().lean<ProductDocument[]>();
-    
-    const report: StockItem[] = products.map(product => ({
+    const products = await Product.find({ user: userId }).lean();
+
+    const report = products.map(product => ({
       name: product.name,
       initialQuantity: product.initialQuantity,
       remainingQuantity: product.remainingQuantity,
@@ -40,13 +25,9 @@ export const getStockSummary = async (req: Request, res: Response) => {
       totalStockValue: report.reduce((sum, item) => sum + item.totalCostValue, 0),
       totalSalesValue: report.reduce((sum, item) => sum + item.totalSalesValue, 0),
       totalProfit: report.reduce((sum, item) => sum + item.profit, 0),
-      lowStockItems: report.filter(item => 
-        item.remainingQuantity < item.minThreshold
-      ),
+      lowStockItems: report.filter(item => item.remainingQuantity < item.minThreshold),
       outOfStockItems: report.filter(item => item.remainingQuantity === 0),
-      healthyStockItems: report.filter(item => 
-        item.remainingQuantity >= item.minThreshold
-      )
+      healthyStockItems: report.filter(item => item.remainingQuantity >= item.minThreshold)
     };
 
     res.json({
@@ -54,19 +35,16 @@ export const getStockSummary = async (req: Request, res: Response) => {
       data: report,
       summary
     });
-    
-  } catch (err: unknown) {
+
+  } catch (err) {
     console.error("Error in stock summary:", err);
     
-    // Type-safe error handling
-    const errorMessage = err instanceof Error 
-      ? err.message 
-      : "An unknown error occurred";
-      
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: "Failed to generate stock summary",
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
+
+module.exports = { getStockSummary };

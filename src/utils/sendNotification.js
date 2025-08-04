@@ -1,6 +1,7 @@
-import nodemailer from "nodemailer";
+// utils/sendNotification.js
+const nodemailer = require("nodemailer");
 
-export const sendNotification = async (message: string) => {
+const sendNotification = async (message) => {
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
@@ -16,3 +17,5 @@ export const sendNotification = async (message: string) => {
     text: message
   });
 };
+
+module.exports = { sendNotification };

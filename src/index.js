@@ -1,14 +1,16 @@
-import express from "express";
-import mongoose from "mongoose";
-import cors from "cors";
-import dotenv from "dotenv";
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const dotenv = require("dotenv");
 
-import productRoutes from "./routes/productRoutes";
-import receiptRoutes from "./routes/receiptRoutes";
-import authRoutes from "./routes/authRoutes";
-import dashboardRoutes from "./routes/dashboardRoutes"; 
-import transactionRoutes from "./routes/transactionRoutes";
-import reportRoutes from "./routes/reportRoutes";
+const productRoutes = require("./routes/productRoutes");
+const receiptRoutes = require("./routes/receiptRoutes");
+const authRoutes = require("./routes/authRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const transactionRoutes = require("./routes/transactionRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+
+
 
 dotenv.config();
 
@@ -25,11 +27,19 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/reports", reportRoutes);
 
+
 app.get("/", (_req, res) => {
   res.send("API is running...");
 });
 
-mongoose.connect(process.env.MONGODB_URI!)
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error("MONGODB_URI not found in environment variables.");
+  process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log("MongoDB connected");
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
