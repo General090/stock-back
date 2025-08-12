@@ -3,7 +3,7 @@ const router = express.Router();
 const Product = require("../models/Product");
 const { checkStockLevel } = require("../utils/checkStockLevel");
 const User = require("../models/User");
-const { createProduct, getProductsByUser } = require("../controllers/productController");
+const { createProduct, getProductsByUser, getLowStockProducts } = require("../controllers/productController");
 const jwt = require("jsonwebtoken");
 const authenticate = require("../middleware/authMiddleware")
 
@@ -13,20 +13,9 @@ router.get("/my-products", authenticate, getProductsByUser);
 router.post("/", authenticate, createProduct);
 
 // GET /products/low-stock
-router.get("/low-stock", authenticate, async (req, res) => {
-  try {
-    const threshold = req.query.threshold || 5;
-    const lowStock = await Product.find({
-      $or: [
-        { remainingQuantity: { $lt: threshold } },
-        { quantity: { $lt: threshold } }
-      ]
-    }).lean();
-    res.json(lowStock);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch low stock products" });
-  }
-});
+// GET /products/low-stock
+router.get("/low-stock", authenticate, getLowStockProducts)
+
 
 // router.post("/", authenticate, createProduct, async (req, res) => {
 //   const userId = req.user._id;

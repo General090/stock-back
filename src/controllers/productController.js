@@ -56,7 +56,30 @@ const getProductsByUser = async (req, res) => {
 };
 
 
+// Get Low Stock Products for the logged-in user
+const getLowStockProducts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "Missing userId" });
+    }
+
+    const lowStockProducts = await Product.find({
+      user: userId,
+      $expr: { $lt: ["$remainingQuantity", "$minThreshold"] } // ✅ compare fields
+    });
+
+    res.status(200).json({ success: true, data: lowStockProducts });
+  } catch (error) {
+    console.error("Error fetching low stock products:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch low stock products" });
+  }
+};
+
+
+
 module.exports = {
   createProduct,
   getProductsByUser,
+  getLowStockProducts,
 };
