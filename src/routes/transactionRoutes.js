@@ -1,34 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
-const {getRecentTransactions} = require('../controllers/transactionController')
+const { getRecentTransactions } = require('../controllers/transactionController')
 const Product = require('../models/Product');
+const authenticate =require('../middleware/authMiddleware')
 
 
-router.get("/recent", getRecentTransactions); // <--- This is the key
+// router.get("/recent", getRecentTransactions); // <--- This is the key
 
 
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const { product, type, quantity } = req.body;
+    const userId = req.user.id; // ✅ Get from token/session
 
-    // Validate input
     if (!product || !type || typeof quantity !== 'number') {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields or invalid quantity',
-      });
+      return res.status(400).json({ success: false, error: 'Missing required fields or invalid quantity' });
     }
 
-    const prod = await Product.findById(product);
+    const prod = await Product.findOne({ _id: product, user: userId }); // ✅ Ensure this product belongs to the user
     if (!prod) {
-      return res.status(404).json({
-        success: false,
-        error: 'Product not found',
-      });
+      return res.status(404).json({ success: false, error: 'Product not found for this user' });
     }
 
-    // Check stock level
     if (type === 'OUT' && prod.remainingQuantity < quantity) {
       return res.status(400).json({
         success: false,
@@ -37,17 +31,17 @@ router.post('/', async (req, res) => {
       });
     }
 
-    // Update inventory
     prod.remainingQuantity += type === 'IN' ? quantity : -quantity;
     await prod.save();
 
-    // Create transaction
     const transaction = new Transaction({
       product,
       type,
       quantity,
       price: type === 'IN' ? prod.costPrice : prod.sellingPrice,
+      user: userId // ✅ Store the user
     });
+
     await transaction.save();
 
     return res.status(201).json({
@@ -58,36 +52,13 @@ router.post('/', async (req, res) => {
       },
     });
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Transaction error:', errorMessage);
-    res.status(500).json({
-      success: false,
-      error: 'Transaction failed',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
+    console.error('Transaction error:', err.message);
+    res.status(500).json({ success: false, error: 'Transaction failed' });
   }
 });
 
-router.get('/recent', async (req, res) => {
-  try {
-    const recent = await Transaction.find()
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .populate('product', 'name sellingPrice remainingQuantity');
 
-    return res.json({
-      success: true,
-      data: recent,
-    });
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Failed to fetch transactions:', errorMessage);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch transactions',
-      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
-    });
-  }
-});
+router.get('/recent', authenticate, getRecentTransactions)
+
 
 module.exports = router;
