@@ -17,8 +17,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: "https://stock-front-smoky.vercel.app" }));
-// app.use(cors({ origin: "https://localhost:5000" }));
+// app.use(cors({ origin: "https://stock-front-smoky.vercel.app" }));
+app.use(cors({ origin: "https://localhost:5000" }));
 app.use(express.json());
 
 app.use("/api/products", productRoutes);
